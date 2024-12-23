@@ -31,6 +31,14 @@ fn unpack(raw_bytes: []const u8, allocator: std.mem.Allocator) !?UnpackItems {
 
     try std.base64.standard.Decoder.decode(bytes, raw_bytes);
 
+    // Debug print all decoded bytes
+    try std.base64.standard.Decoder.decode(bytes, raw_bytes);
+    std.debug.print("all decoded bytes: ", .{});
+    for (bytes) |byte| {
+        std.debug.print("{x:0>2} ", .{byte});
+    }
+    std.debug.print("\n", .{});
+
     if (bytes.len < 30) {
         return null;
     }
@@ -45,26 +53,27 @@ fn unpack(raw_bytes: []const u8, allocator: std.mem.Allocator) !?UnpackItems {
     const uint_val = std.mem.readInt(u32, &uint_slice, .little);
     std.debug.print("uint: {d}\n", .{uint_val});
 
-    // Next 2 bytes are short
+    // Next 4 bytes are short and padding
     const short_slice: [2]u8 = bytes[8..10].*;
     const short_val = std.mem.readInt(i16, &short_slice, .little);
     std.debug.print("short: {d}\n", .{short_val});
 
     // Next 4 bytes are float
-    const float_slice: [4]u8 = bytes[10..14].*;
+    const float_slice: [4]u8 = bytes[12..16].*;
     const float_val: f32 = @bitCast(std.mem.readInt(u32, &float_slice, .little));
-    std.debug.print("float: {e}\n", .{float_val});
+    std.debug.print("float: {d}\n", .{float_val});
 
     // Next 8 bytes are double
-    const double_slice: [8]u8 = bytes[14..22].*;
+    const double_slice: [8]u8 = bytes[16..24].*;
     const double_val: f64 = @bitCast(std.mem.readInt(u64, &double_slice, .little));
-    std.debug.print("double: {e}\n", .{double_val});
+    std.debug.print("double: {d}\n", .{double_val});
 
     // Last 8 bytes are double but using big endian
-    const double_big_endian_slice: [8]u8 = bytes[22..30].*;
+    const double_big_endian_slice: [8]u8 = bytes[24..32].*;
     const double_big_endian_val: f64 = @bitCast(std.mem.readInt(u64, &double_big_endian_slice, .big));
-    std.debug.print("double big endian: {e}\n", .{double_big_endian_val});
+    std.debug.print("double big endian: {d}\n", .{double_big_endian_val});
 
+    std.debug.print("\n", .{});
     // Return the unpacked values
     return UnpackItems{
         .int = int_val,
