@@ -47,10 +47,13 @@ fn checkDifficulty(sha256_hash: [32]u8, difficulty: u32) !bool {
 
 fn mine(block: *Block, difficulty: u32, allocator: std.mem.Allocator) !?u32 {
     var nonce: u32 = 0;
-    while (true) {
+    const max_nonce: u32 = std.math.maxInt(u32);
+    while (nonce < max_nonce) {
         block.nonce = nonce;
 
         const block_json = try getBlockJsonMinified(block, allocator);
+        defer allocator.free(block_json);
+
         const sha256_hash = try getSHA256Hash(block_json);
         const check_diff = try checkDifficulty(sha256_hash, difficulty);
 

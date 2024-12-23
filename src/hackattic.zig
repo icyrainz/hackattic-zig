@@ -42,8 +42,13 @@ pub const Challenge = struct {
         return response_body.toOwnedSlice();
     }
 
-    pub fn submit_output(self: *const Self, output: []const u8) !void {
-        const url_final = try std.fmt.allocPrint(self.allocator, "{s}{s}/solve?access_token={s}", .{ url_prefix, self.challenge_name, self.access_token });
+    pub fn submit_output(self: *const Self, output: []const u8, using_playground: bool) !void {
+        const url_final = try std.fmt.allocPrint(self.allocator, "{s}{s}/solve?access_token={s}{s}", .{
+            url_prefix,
+            self.challenge_name,
+            self.access_token,
+            if (using_playground) "&playground=1" else "",
+        });
 
         var response_body = std.ArrayList(u8).init(self.allocator);
         defer response_body.deinit();

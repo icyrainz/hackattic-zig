@@ -25,7 +25,7 @@ const Solvers = [_]*const Solver{
     &MiniMinerSolver,
 };
 
-fn do_solve(challenge_name: []const u8, allocator: std.mem.Allocator) !void {
+fn do_solve(challenge_name: []const u8, using_playground: bool, allocator: std.mem.Allocator) !void {
     const challenge = hackattic.Challenge.init(allocator, challenge_name, access_token);
 
     const input = try challenge.get_input_json();
@@ -42,7 +42,7 @@ fn do_solve(challenge_name: []const u8, allocator: std.mem.Allocator) !void {
         std.debug.print("Failed to solve: {}\n", .{err});
         return;
     };
-    challenge.submit_output(output) catch |err| {
+    challenge.submit_output(output, using_playground) catch |err| {
         std.debug.print("Failed to submit_output: {}\n", .{err});
         return;
     };
@@ -54,5 +54,8 @@ pub fn main() !void {
     defer arena_allocator.deinit();
     const allocator = arena_allocator.allocator();
 
-    try do_solve("mini_miner", allocator);
+    const envs = try std.process.getEnvMap(allocator);
+    const using_playground = if (std.mem.eql(u8, envs.get("PLAY") orelse "", "1")) true else false;
+
+    try do_solve("mini_miner", using_playground, allocator);
 }
