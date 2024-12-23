@@ -4,7 +4,7 @@ const Problem = struct {
     bytes: []const u8,
 };
 
-const UnpackItems = struct {
+const Solution = struct {
     int: i32,
     uint: u32,
     short: i16,
@@ -25,7 +25,7 @@ pub fn solve(input_json: []const u8, allocator: std.mem.Allocator) ![]const u8 {
     return array_list.toOwnedSlice();
 }
 
-fn unpack(raw_bytes: []const u8, allocator: std.mem.Allocator) !?UnpackItems {
+fn unpack(raw_bytes: []const u8, allocator: std.mem.Allocator) !?Solution {
     var bytes: []u8 = try allocator.alloc(u8, raw_bytes.len);
     defer allocator.free(bytes);
 
@@ -75,7 +75,7 @@ fn unpack(raw_bytes: []const u8, allocator: std.mem.Allocator) !?UnpackItems {
 
     std.debug.print("\n", .{});
     // Return the unpacked values
-    return UnpackItems{
+    return Solution{
         .int = int_val,
         .uint = uint_val,
         .short = short_val,
