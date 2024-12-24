@@ -3,8 +3,6 @@ const hackattic = @import("hackattic.zig");
 const help_me_unpack = @import("help-me-unpack.zig");
 const mini_miner = @import("mini-miner.zig");
 
-const access_token = "a205ba4ea45be0c8";
-
 const Solver = struct {
     name: []const u8,
     solve: *const fn (input_json: []const u8, allocator: std.mem.Allocator) anyerror![]const u8,
@@ -25,7 +23,7 @@ const Solvers = [_]*const Solver{
     &MiniMinerSolver,
 };
 
-fn do_solve(challenge_name: []const u8, using_playground: bool, allocator: std.mem.Allocator) !void {
+fn do_solve(challenge_name: []const u8, access_token: []const u8, using_playground: bool, allocator: std.mem.Allocator) !void {
     const challenge = hackattic.Challenge.init(allocator, challenge_name, access_token);
 
     const input = try challenge.get_input_json();
@@ -56,6 +54,7 @@ pub fn main() !void {
 
     const envs = try std.process.getEnvMap(allocator);
     const using_playground = if (std.mem.eql(u8, envs.get("PLAY") orelse "", "1")) true else false;
+    const access_token = envs.get("HACKATTIC_ACCESS_TOKEN").?;
 
-    try do_solve("mini_miner", using_playground, allocator);
+    try do_solve("mini_miner", access_token, using_playground, allocator);
 }
