@@ -265,6 +265,77 @@ const TBSCertificate = struct {
     }
 };
 
+const c = @cImport({
+    @cDefine("_POSIX_C_SOURCE", "200809L");
+    @cDefine("__FILE__", "\"ssl.zig\"");
+    @cDefine("__LINE__", "0");
+    @cInclude("openssl/x509.h");
+    @cInclude("openssl/x509v3.h");
+    @cInclude("openssl/pem.h");
+    @cInclude("openssl/err.h");
+});
+
+pub fn createX509CertificateOpenSSL(
+    domain: []const u8,
+    serial_number: []const u8,
+    country: []const u8,
+    validity: Validity,
+    allocator: std.mem.Allocator,
+) ![]u8 {
+    const x509 = c.X509_new() orelse return error.X509CreationFailed;
+    defer c.X509_free(x509);
+
+    _ = c.X509_set_version(x509, 2);
+
+    // Set serial number
+    const serial = c.BN_bin2bn(serial_number.ptr, @intCast(serial_number.len), null) orelse return error.SerialNumberCreationFailed;
+    defer c.BN_free(serial);
+    const asn1_serial = c.BN_to_ASN1_INTEGER(serial, null) orelse return error.SerialNumberConversionFailed;
+    defer c.ASN1_INTEGER_free(asn1_serial);
+    if (c.X509_set_serialNumber(x509, asn1_serial) != 1) return error.SerialNumberSetFailed;
+
+    // Create and set subject and issuer names
+    const name = c.X509_NAME_new() orelse return error.X509NameCreationFailed;
+    defer c.X509_NAME_free(name);
+
+    // Add country
+    if (c.X509_NAME_add_entry_by_txt(name, "C", c.MBSTRING_ASC, country.ptr, @intCast(country.len), -1, 0) != 1) return error.CountryAddFailed;
+
+    if (c.X509_NAME_add_entry_by_txt(name, "CN", c.MBSTRING_ASC, domain.ptr, @intCast(domain.len), -1, 0) != 1) return error.DomainAddFailed;
+
+    _ = c.X509_set_subject_name(x509, name);
+    _ = c.X509_set_issuer_name(x509, name);
+
+    // Set validity period
+    const not_before = c.ASN1_TIME_new() orelse return error.ASN1TimeCreationFailed;
+    defer c.ASN1_TIME_free(not_before);
+    const not_after = c.ASN1_TIME_new() orelse return error.ASN1TimeCreationFailed;
+    defer c.ASN1_TIME_free(not_after);
+
+    _ = c.ASN1_TIME_set_string(not_before, validity.not_before.ptr);
+    _ = c.ASN1_TIME_set_string(not_after, validity.not_after.ptr);
+
+    _ = c.X509_set1_notBefore(x509, not_before);
+    _ = c.X509_set1_notAfter(x509, not_after);
+
+    // Write the certificate to memory in DER format
+    var out_buffer: [*c]u8 = undefined;
+    const cert_len = c.i2d_X509(x509, &out_buffer);
+    if (cert_len <= 0) {
+        const err = c.ERR_get_error();
+        const err_str = c.ERR_error_string(err, null);
+        std.debug.print("OpenSSL error: {s}\n", .{err_str});
+        return error.X509CertificateEncodingFailed;
+    }
+    defer c.OPENSSL_free(out_buffer);
+
+    // Copy the certificate to Zig-managed buffer
+    var cert_bytes = try allocator.alloc(u8, @intCast(cert_len));
+    @memcpy(cert_bytes[0..@intCast(cert_len)], out_buffer[0..@intCast(cert_len)]);
+
+    return cert_bytes;
+}
+
 pub fn solve(input_json: []const u8, allocator: std.mem.Allocator) ![]const u8 {
     const parsedProblem = try std.json.parseFromSlice(Problem, allocator, input_json, .{});
 
@@ -291,6 +362,9 @@ pub fn solve(input_json: []const u8, allocator: std.mem.Allocator) ![]const u8 {
     const solution = Solution{ .certificate = base64_buf };
     const encoded_cert_json = try std.json.stringifyAlloc(allocator, solution, .{});
     std.debug.print("DEBUGPRINT[1]: ssl.zig:262: encoded_cert_json={s}\n", .{encoded_cert_json});
+
+    _ = try createX509CertificateOpenSSL(cert.domain, cert.serial_number, cert.country, cert.validity, allocator);
+
     return encoded_cert_json;
 }
 
@@ -371,11 +445,26 @@ test "TBSCertificate validity period" {
 
 test "TBSCertificate create cert" {
     const testCert = createTestCert();
-    std.debug.print("cert value: {any}\n", .{testCert});
+    // std.debug.print("cert value: {any}\n", .{testCert});
 
     var writer = Asn1Writer.init(std.testing.allocator);
     defer writer.deinit();
 
     try testCert.writeToAsn1Writer(&writer);
-    std.debug.print("writer list: {any}\n", .{writer.list.items});
+    // std.debug.print("writer list: {any}\n", .{writer.list.items});
+}
+
+test "Compare TBSCertificate with X509Certificate created from OpenSSL lib" {
+    const testCert = createTestCert();
+
+    var writer = Asn1Writer.init(std.testing.allocator);
+    defer writer.deinit();
+
+    try testCert.writeToAsn1Writer(&writer);
+
+    const tbs_cert_bytes = try writer.list.toOwnedSlice();
+    defer std.testing.allocator.free(tbs_cert_bytes);
+    std.debug.print("DEBUGPRINT[2]: ssl.zig:456: tbs_cert_bytes={any}\n", .{tbs_cert_bytes});
+    const x509_openssl_cert_bytes = try createX509CertificateOpenSSL(testCert.domain, testCert.serial_number, testCert.country, testCert.validity, std.testing.allocator);
+    std.debug.print("DEBUGPRINT[3]: ssl.zig:458: x509_openssl_cert_bytes={any}\n", .{x509_openssl_cert_bytes});
 }
